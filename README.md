@@ -54,8 +54,25 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 deactivate
 ```
 
+# Instalar dependencias  
+Para instalar las dependencias de un proyecto desde un archivo de requerimientos:
+```bash
+pip install -r requirements.txt
+```
+
 # Desplegar Redis
 ## Docker
 ```bash
 docker run -d -p 6379:6379 --name redis-server redis
+```
+
+# Ejecutar el código
+Ejecute primero train.py:
+```bash
+python .\train-esp32\train.py
+```
+
+Ejecute despues el controller.py:
+```bash
+python .\train-controller\controller.py
 ```
