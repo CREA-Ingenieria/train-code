@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Trenes - Metro Bogotá</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        
+        .title-accent {
+            color: #dc2626;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 15px;
+        }
+        
+        .status-connected {
+            background: rgba(34, 197, 94, 0.2);
+            border: 2px solid #22c55e;
+            color: #22c55e;
+        }
+        
+        .status-disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #ef4444;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .card-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(220, 38, 38, 0.5);
+            padding-bottom: 10px;
+        }
+        
+        .track-container {
+            position: relative;
+            height: 200px;
+            margin: 40px 0;
+        }
+        
+        .track-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: #4a5568;
+            border-radius: 4px;
+            transform: translateY(-50%);
+        }
+        
+        .stations {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            transform: translateY(-50%);
+        }
+        
+        .station {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #6b7280;
+            border: 3px solid #1a1a2e;
+            z-index: 1;
+        }
+        
+        .station.start { background: #22c55e; }
+        .station.end { background: #dc2626; }
+        
+        .trains-layer {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+        }
+        
+        .train-marker {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            border-radius: 50%;
+            border: 3px solid #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            transform: translate(-50%, -50%);
+        }
+        
+        .train-marker.selected {
+            background: #dc2626;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+        
+        .train-marker.stopped {
+            background: #22c55e;
+        }
+        
+        .train-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .train-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .train-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .train-item.active {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.2);
+        }
+        
+        .train-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .train-item-info {
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+        
+        .control-section {
+            margin-bottom: 25px;
+        }
+        
+        .control-label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
+        }
+        
+        .btn-secondary {
+            background: #4b5563;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #374151;
+        }
+        
+        .slider-container {
+            margin: 15px 0;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #4b5563;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #dc2626;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #dc2626;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .speed-display {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #dc2626;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+        
+        .info-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        .no-trains {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        
+        .emergency-btn {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Metro Bogotá <span class="title-accent">Control</span></h1>
+            <p style="margin-top: 10px; color: #9ca3af;">Sistema de Monitoreo y Control de Flota</p>
+            <div class="status-badge status-disconnected" id="connection-status">
+                ⚠ Desconectado
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <!-- Mapa -->
+            <div class="card">
+                <div class="card-title">
+                    Línea 1 - <span id="active-count">0</span> trenes activos
+                </div>
+                
+                <div class="track-container">
+                    <div class="track-line"></div>
+                    
+                    <div class="stations">
+                        <div class="station start" title="Portal Américas"></div>
+                        <div class="station" title="Estación 1"></div>
+                        <div class="station" title="Estación 2"></div>
+                        <div class="station" title="Estación 3"></div>
+                        <div class="station end" title="Calle 72"></div>
+                    </div>
+                    
+                    <div class="trains-layer" id="trains-layer"></div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <span style="margin: 0 15px;">🟢 Detenido</span>
+                    <span style="margin: 0 15px;">🔵 En Movimiento</span>
+                    <span style="margin: 0 15px;">🔴 Seleccionado</span>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="card">
+                <!-- Selector de Trenes -->
+                <div class="control-section">
+                    <div class="control-label">Seleccionar Tren</div>
+                    <div class="train-list" id="train-list">
+                        <div class="no-trains">No hay trenes disponibles</div>
+                    </div>
+                </div>
+
+                <!-- Info del tren seleccionado -->
+                <div id="train-control" style="display: none;">
+                    <div class="card-title">Tren <span id="selected-train-id">-</span></div>
+                    
+                    <!-- Estado -->
+                    <div class="control-section">
+                        <div class="control-label">Estado</div>
+                        <div class="info-item" style="text-align: center;">
+                            <span id="train-status" style="font-size: 1.2rem; font-weight: bold;">En Línea</span>
+                        </div>
+                    </div>
+
+                    <!-- Velocidad -->
+                    <div class="control-section">
+                        <div class="control-label">Velocidad</div>
+                        <div class="slider-container">
+                            <input type="range" id="speed-slider" min="0" max="100" value="0">
+                        </div>
+                        <div class="speed-display">
+                            <span id="speed-value">0</span>%
+                        </div>
+                    </div>
+
+                    <!-- Controles de Dirección -->
+                    <div class="control-section">
+                        <div class="control-label">Control</div>
+                        <div class="button-group">
+                            <button class="btn-primary" id="btn-backward">◀ Atrás</button>
+                            <button class="btn-warning" id="btn-stop">■ Parar</button>
+                            <button class="btn-primary" id="btn-forward">Adelante ▶</button>
+                        </div>
+                        <div style="text-align: center; margin-top: 10px; color: #9ca3af;">
+                            <span id="direction-text">Detenido</span>
+                        </div>
+                    </div>
+
+                    <!-- Info Adicional -->
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">WiFi</div>
+                            <div class="info-value" id="wifi-rssi">- dBm</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Uptime</div>
+                            <div class="info-value" id="uptime">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Emergencia -->
+                    <button class="btn-danger emergency-btn" id="btn-emergency">
+                        ⚠ PARADA DE EMERGENCIA
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const WS_URL = `ws://${window.location.host}/ws`;
+        const API_BASE = window.location.origin;
+        
+        let ws = null;
+        let selectedTrainId = null;
+        let trainsData = {};
+        let isUserAdjusting = false;
+
+        // Conectar WebSocket
+        function connectWS() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('[WS] Conectado');
+                updateConnectionStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'state_update') {
+                    handleStateUpdate(data.trains);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('[WS] Error:', error);
+                updateConnectionStatus(false);
+            };
+            
+            ws.onclose = () => {
+                console.log('[WS] Desconectado - Reconectando...');
+                updateConnectionStatus(false);
+                setTimeout(connectWS, 3000);
+            };
+        }
+
+        function updateConnectionStatus(connected) {
+            const badge = document.getElementById('connection-status');
+            if (connected) {
+                badge.className = 'status-badge status-connected';
+                badge.textContent = '✓ Conectado';
+            } else {
+                badge.className = 'status-badge status-disconnected';
+                badge.textContent = '⚠ Desconectado';
+            }
+        }
+
+        function handleStateUpdate(trains) {
+            trainsData = {};
+            trains.forEach(train => {
+                trainsData[train.train_id] = train;
+            });
+            
+            updateTrainsList();
+            updateTrainsOnMap();
+            
+            if (selectedTrainId && trainsData[selectedTrainId]) {
+                updateSelectedTrainInfo(trainsData[selectedTrainId]);
+            }
+        }
+
+        function updateTrainsList() {
+            const list = document.getElementById('train-list');
+            const count = Object.keys(trainsData).length;
+            
+            document.getElementById('active-count').textContent = count;
+            
+            if (count === 0) {
+                list.innerHTML = '<div class="no-trains">No hay trenes disponibles</div>';
+                return;
+            }
+            
+            list.innerHTML = '';
+            Object.values(trainsData).forEach(train => {
+                const div = document.createElement('div');
+                div.className = 'train-item' + (selectedTrainId === train.train_id ? ' active' : '');
+                div.onclick = () => selectTrain(train.train_id);
+                
+                const arrow = train.state.direction === 'ADELANTE' ? '▶' :
+                             train.state.direction === 'ATRAS' ? '◀' : '■';
+                
+                div.innerHTML = `
+                    <div class="train-item-header">
+                        <strong>Tren #${train.train_id}</strong>
+                        <span>${arrow}</span>
+                    </div>
+                    <div class="train-item-info">
+                        ${train.state.speed}% - ${train.state.direction}
+                    </div>
+                `;
+                
+                list.appendChild(div);
+            });
+        }
+
+        function updateTrainsOnMap() {
+            const layer = document.getElementById('trains-layer');
+            layer.innerHTML = '';
+            
+            Object.values(trainsData).forEach((train, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'train-marker';
+                
+                if (train.train_id === selectedTrainId) {
+                    marker.classList.add('selected');
+                } else if (!train.state.motors_running) {
+                    marker.classList.add('stopped');
+                }
+                
+                const position = 10 + (index * 20);
+                marker.style.left = `${Math.min(90, position)}%`;
+                marker.textContent = `T${train.train_id}`;
+                marker.onclick = () => selectTrain(train.train_id);
+                
+                layer.appendChild(marker);
+            });
+        }
+
+        function selectTrain(trainId) {
+            selectedTrainId = trainId;
+            document.getElementById('selected-train-id').textContent = `#${trainId}`;
+            document.getElementById('train-control').style.display = 'block';
+            
+            updateTrainsList();
+            updateTrainsOnMap();
+            
+            if (trainsData[trainId]) {
+                updateSelectedTrainInfo(trainsData[trainId]);
+            }
+        }
+
+        function updateSelectedTrainInfo(train) {
+            const state = train.state;
+            
+            // Estado
+            const status = document.getElementById('train-status');
+            if (state.motors_running) {
+                status.textContent = '🔵 En Movimiento';
+                status.style.color = '#3b82f6';
+            } else {
+                status.textContent = '🟢 Detenido';
+                status.style.color = '#22c55e';
+            }
+            
+            // Velocidad
+            if (!isUserAdjusting) {
+                document.getElementById('speed-slider').value = state.speed;
+                document.getElementById('speed-value').textContent = state.speed;
+            }
+            
+            // Dirección
+            document.getElementById('direction-text').textContent = state.direction;
+            
+            // Info
+            document.getElementById('wifi-rssi').textContent = `${state.wifi_rssi} dBm`;
+            const uptimeSec = Math.floor(state.uptime / 1000);
+            const mins = Math.floor(uptimeSec / 60);
+            const secs = uptimeSec % 60;
+            document.getElementById('uptime').textContent = `${mins}m ${secs}s`;
+        }
+
+        async function sendCommand(comando, parametros = {}) {
+            if (!selectedTrainId) {
+                alert('Seleccione un tren primero');
+                return;
+            }
+            
+            try {
+                await fetch(`${API_BASE}/api/train/${selectedTrainId}/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comando, parametros })
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Event Listeners
+        const speedSlider = document.getElementById('speed-slider');
+        speedSlider.addEventListener('input', (e) => {
+            isUserAdjusting = true;
+            document.getElementById('speed-value').textContent = e.target.value;
+        });
+
+        speedSlider.addEventListener('change', (e) => {
+            const speed = parseInt(e.target.value);
+            if (speed === 0) {
+                sendCommand('stop');
+            } else if (trainsData[selectedTrainId]) {
+                const dir = trainsData[selectedTrainId].state.direction;
+                if (dir === 'ADELANTE' || dir === 'STOP') {
+                    sendCommand('move_forward', { velocidad_objetivo: speed });
+                } else {
+                    sendCommand('move_reverse', { velocidad_objetivo: speed });
+                }
+            }
+            setTimeout(() => { isUserAdjusting = false; }, 1000);
+        });
+
+        document.getElementById('btn-forward').onclick = () => {
+            const speed = parseInt(speedSlider.value) || 75;
+            sendCommand('move_forward', { velocidad_objetivo: speed });
+        };
+
+        document.getElementById('btn-backward').onclick = () => {
+            const speed = parseInt(speedSlider.value) || 75;
+            sendCommand('move_reverse', { velocidad_objetivo: speed });
+        };
+
+        document.getElementById('btn-stop').onclick = () => {
+            sendCommand('stop');
+            speedSlider.value = 0;
+            document.getElementById('speed-value').textContent = 0;
+        };
+
+        document.getElementById('btn-emergency').onclick = async () => {
+            if (confirm(`¿Detener tren #${selectedTrainId}?`)) {
+                await sendCommand('stop');
+                await fetch(`${API_BASE}/api/train/${selectedTrainId}/queue`, { method: 'DELETE' });
+                speedSlider.value = 0;
+                document.getElementById('speed-value').textContent = 0;
+            }
+        };
+
+        // Iniciar
+        connectWS();
+    </script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Metro Bogotá – Control de Trenes</title>
+<style>
+  :root{
+    --bg1:#991b1b;   /* rojo oscuro */
+    --bg2:#7f1d1d;   /* rojo más oscuro */
+    --card:rgba(255,255,255,0.08);
+    --stroke:rgba(255,255,255,0.25);
+    --accent:#ffffff; /* acento blanco */
+    --warn:#f59e0b;
+    --danger:#dc2626;
+    --ok:#22c55e;
+    --muted:#e5e7eb;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Arial,sans-serif;
+    background: radial-gradient(1200px 700px at 20% 0%, var(--bg1), var(--bg2));
+    color:#fff; min-height:100vh; padding:20px;
+  }
+  .container{max-width:1400px;margin:0 auto}
+  header{position:relative;text-align:center;margin-bottom:18px}
+  h1{
+    font-size:clamp(24px,3.4vw,42px);
+    letter-spacing:1.2px; font-weight:800; color:#fff;
+    text-transform:uppercase;
+  }
+  header .subtitle{margin-top:6px; opacity:.8}
+
+  /* Logos en esquinas */
+  .corner-logo{
+    position:fixed; z-index:50; opacity:.9; mix-blend-mode:screen;
+    
+  }
+  .logo-uniandes{left:16px; top:16px; height:62px; }
+  .logo-metro{right:35px; top:16px; height:86px; }
+
+  /* Estado de conexión */
+  .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    border:2px solid var(--stroke);
+    border-radius:999px; padding:8px 14px; margin-top:12px; font-weight:600;
+  }
+  .ok{ border-color:rgba(34,197,94,.7); color:#d1fae5; background:rgba(34,197,94,.12); }
+  .ko{ border-color:rgba(239,68,68,.7); color:#fee2e2; background:rgba(239,68,68,.12); }
+
+  /* Layout principal */
+  .grid{
+    display:grid; grid-template-columns:2fr 1fr; gap:18px;
+  }
+  @media (max-width:1024px){ .grid{grid-template-columns:1fr} }
+
+  .card{
+    background:var(--card); border:1px solid var(--stroke);
+    border-radius:16px; padding:18px; backdrop-filter: blur(8px);
+  }
+  .card-title{
+    font-size:20px; font-weight:800; letter-spacing:.5px;
+    padding-bottom:10px; border-bottom:2px solid rgba(255,255,255,.35);
+  }
+
+  /* Pista en óvalo (estadio) con SVG */
+  .map-wrap{ margin-top:12px }
+  .legend{display:flex; gap:18px; justify-content:center; margin-top:8px; opacity:.9}
+  .legend span{display:inline-flex; gap:6px; align-items:center}
+
+  /* Lista de trenes */
+  .train-list{ max-height:230px; overflow:auto; margin-top:10px }
+  .train-item{
+    border:1px solid transparent; border-radius:12px;
+    background:rgba(255,255,255,.05); padding:12px; margin-bottom:10px; cursor:pointer;
+    transition:.2s;
+  }
+  .train-item:hover{ background:rgba(255,255,255,.09) }
+  .train-item.active{ border-color:#fff; background:rgba(255,255,255,.15) }
+  .train-item .head{ display:flex; justify-content:space-between; font-weight:700 }
+
+  /* Controles */
+  .section{ margin-top:14px }
+  .label{ text-transform:uppercase; font-size:12px; letter-spacing:.8px; opacity:.8; margin-bottom:8px }
+  .btn{
+    border:none; border-radius:10px; padding:11px 14px; font-weight:800; cursor:pointer;
+    color:#111; background:#fff; transition: transform .15s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:translateY(1px) }
+  .btn-row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+  .btn-danger{ background:#fff; color:#b91c1c; border:2px solid #b91c1c }
+  .btn-warn{ background:#fff; color:#92400e; border:2px solid var(--warn) }
+  .btn-ghost{ background:transparent; color:#fff; border:2px dashed rgba(255,255,255,.5) }
+  .emergency{ width:100%; margin-top:12px; padding:14px; font-size:15px; }
+
+  /* Slider */
+  .speed{ text-align:center; font-size:32px; font-weight:900; color:#fff; }
+  input[type="range"]{ width:100%; height:8px; border-radius:4px; background:rgba(255,255,255,.35); outline:none; -webkit-appearance:none }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#fff; cursor:pointer; border:2px solid #000; }
+  input[type="range"]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:#fff; cursor:pointer; border:2px solid #000; }
+
+  /* Chips info */
+  .info{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:10px }
+  .info .box{ background:rgba(255,255,255,.06); border:1px dashed var(--stroke); padding:10px; border-radius:10px }
+  .muted{ color:var(--muted) }
+
+  /* Etiquetas de estado */
+  .pill{ display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px }
+  .pill.move{ background:rgba(59,130,246,.18); border:1px solid rgba(59,130,246,.5) }
+  .pill.stop{ background:rgba(34,197,94,.18); border:1px solid rgba(34,197,94,.5) }
+
+  /* Auto mode toggle */
+  .toggle{
+    display:inline-grid; grid-auto-flow:column; gap:8px; align-items:center;
+    padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.1); border:1px solid var(--stroke);
+    cursor:pointer; user-select:none; font-weight:700;
+  }
+  .dot{ width:12px; height:12px; border-radius:50%; background:#fca5a5; border:1px solid #000 }
+  .on .dot{ background:#86efac; }
+
+  /* Etiquetas de estaciones */
+  .station-label{ font-size:12px; font-weight:800; fill:#ffffff; text-shadow:0 2px 6px rgba(0,0,0,.6) }
+</style>
+</head>
+<body>
+
+<!-- Logos (locales, ver script de descarga) -->
+<img class="corner-logo logo-uniandes" src="static/img/uniandes.png" alt="Uniandes"/>
+<img class="corner-logo logo-metro" src="static/img/metro_bogota.png" alt="Metro de Bogotá"/>
+
+<div class="container">
+  <header>
+    <h1>Metro Bogotá • <span style="color:#fff">Control</span></h1>
+    <div class="subtitle">Sistema de Monitoreo y Control de Flota</div>
+    <div id="conn" class="badge ko">⚠ Desconectado</div>
+  </header>
+
+  <div class="grid">
+    <!-- MAPA -->
+    <div class="card">
+      <div class="card-title">Línea 1 – <span id="active-count">0</span> trenes activos</div>
+
+      <div class="map-wrap">
+        <!-- SVG con óvalo (estadio): rect redondeado + estaciones -->
+        <svg id="map" viewBox="0 0 900 320" width="100%" height="260" aria-label="Mapa de vía en óvalo">
+          <!-- Pista -->
+          <rect x="60" y="50" width="780" height="220" rx="110" ry="110"
+                fill="none" stroke="rgba(255,255,255,.55)" stroke-width="10"/>
+          <!-- Riel interior para efecto doble vía -->
+          <rect x="80" y="70" width="740" height="180" rx="90" ry="90"
+                fill="none" stroke="rgba(255,255,255,.25)" stroke-width="6"/>
+
+          <!-- Estaciones -->
+          <!-- Arriba Izquierda -->
+          <circle id="st-top-left" cx="160" cy="50" r="10" fill="#86efac" stroke="#062" stroke-width="3"/>
+          <text x="160" y="35" text-anchor="middle" class="station-label">Estación A</text>
+
+          <!-- Abajo Derecha -->
+          <circle id="st-bottom-right" cx="780" cy="270" r="10" fill="#fca5a5" stroke="#600" stroke-width="3"/>
+          <text x="780" y="300" text-anchor="middle" class="station-label">Estación B</text>
+
+          <!-- Capa de trenes (grupos posicionados en la curva) -->
+          <g id="trains-layer"></g>
+        </svg>
+
+        <div class="legend">
+          <span>🟢 <small>Detenido</small></span>
+          <span>🔵 <small>En movimiento</small></span>
+          <span>🔴 <small>Seleccionado</small></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL DE CONTROL -->
+    <div class="card">
+      <!-- Selector -->
+      <div class="section">
+        <div class="label">Trenes disponibles</div>
+        <div id="list" class="train-list"><div class="muted" style="text-align:center;padding:20px">No hay trenes</div></div>
+      </div>
+
+      <!-- Controles del tren seleccionado -->
+      <div id="panel" class="section" style="display:none">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Tren <strong id="tid">-</strong></span>
+          <div id="autoToggle" class="toggle"><span class="dot"></span><span id="autoLbl">Auto: OFF</span></div>
+        </div>
+
+        <!-- Estado -->
+        <div class="section">
+          <div class="label">Estado</div>
+          <div>
+            <span id="pill" class="pill stop">🟢 Detenido</span>
+          </div>
+        </div>
+
+        <!-- Velocidad -->
+        <div class="section">
+          <div class="label">Velocidad</div>
+          <input id="speed" type="range" min="0" max="100" value="0"/>
+          <div class="speed"><span id="v">0</span>%</div>
+        </div>
+
+        <!-- Dirección -->
+        <div class="section">
+          <div class="label">Control</div>
+          <div class="btn-row">
+            <button id="back" class="btn">◀ Atrás</button>
+            <button id="stop" class="btn btn-warn">■ Parar</button>
+            <button id="fwd" class="btn">Adelante ▶</button>
+          </div>
+          <div class="muted" style="text-align:center;margin-top:6px">
+            <span id="dir">Detenido</span>
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div class="info">
+          <div class="box">
+            <div class="label">Wi-Fi</div>
+            <div id="rssi">– dBm</div>
+          </div>
+          <div class="box">
+            <div class="label">Uptime</div>
+            <div id="up">–</div>
+          </div>
+        </div>
+
+        <!-- Emergencia -->
+        <button id="panic" class="btn btn-danger emergency">⚠ Parada de Emergencia</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ----- Config -----
+  const WS_URL = `ws://${location.host}/ws`;
+  const API = location.origin;
+
+  // Estado UI
+  let ws=null, selected=null, trains={}, adjusting=false;
+  // Mapa de auto-mode por tren (persistimos en localStorage para UI)
+  const autoMode = JSON.parse(localStorage.getItem('autoMode') || '{}');
+  // Última velocidad conocida por tren (para reanudar después de parada de estación)
+  const lastSpeed = {};
+
+  // ----- WebSocket -----
+  function connectWS(){
+    ws = new WebSocket(WS_URL);
+    ws.onopen = ()=> setConn(true);
+    ws.onclose = ()=>{ setConn(false); setTimeout(connectWS, 1500); }
+    ws.onerror = ()=> setConn(false);
+    ws.onmessage = (e)=>{
+      try{
+        const msg = JSON.parse(e.data);
+        if(msg.type === 'state_update'){
+          handleState(msg.trains||[]);
+        } else if (msg.type === 'station_event'){
+          handleStationEvent(msg.data||{});
+        }
+      }catch(_){}
+    }
+  }
+  function setConn(ok){
+    const el = document.getElementById('conn');
+    if(ok){ el.className='badge ok'; el.textContent='✓ Conectado'; }
+    else { el.className='badge ko'; el.textContent='⚠ Desconectado'; }
+  }
+
+  // ----- Render de estado -----
+  function handleState(arr){
+    trains = {};
+    arr.forEach(t=>{ trains[t.train_id]=t; lastSpeed[t.train_id]=t.state?.speed ?? lastSpeed[t.train_id] ?? 60; });
+    renderList();
+    renderMap();
+    if(selected && trains[selected]) updatePanel(trains[selected]);
+  }
+
+  function renderList(){
+    const list = document.getElementById('list');
+    const ids = Object.keys(trains);
+    document.getElementById('active-count').textContent = ids.length;
+    if(ids.length===0){ list.innerHTML = '<div class="muted" style="text-align:center;padding:20px">No hay trenes</div>'; return; }
+
+    list.innerHTML='';
+    ids.sort((a,b)=>a-b).forEach(id=>{
+      const t = trains[id];
+      const div = document.createElement('div');
+      div.className = 'train-item'+(Number(id)===Number(selected)?' active':'');
+      div.onclick = ()=> selectTrain(Number(id));
+      const arrow = t.state?.direction==='ADELANTE'?'▶':(t.state?.direction==='ATRAS'?'◀':'■');
+      div.innerHTML = `
+        <div class="head">
+          <span>Tren #${id}</span>
+          <span>${arrow}</span>
+        </div>
+        <div class="muted">${t.state?.speed ?? 0}% • ${t.state?.direction || 'STOP'}</div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  // ----- Mapa: colocamos trenes alrededor del óvalo equiespaciados -----
+  function renderMap(){
+    const layer = document.getElementById('trains-layer');
+    while(layer.firstChild) layer.removeChild(layer.firstChild);
+    const ids = Object.keys(trains);
+    const cx = 450, cy = 160;           // centro del SVG
+    const rx = 350, ry = 110;           // radios de la pista (coincide con rect interior)
+    ids.forEach((id, idx)=>{
+      const angle = (idx/Math.max(1,ids.length)) * 2*Math.PI; // reparto
+      const x = cx + rx * Math.cos(angle);
+      const y = cy + ry * Math.sin(angle);
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform',`translate(${x},${y})`);
+      g.style.cursor='pointer';
+      g.onclick = ()=> selectTrain(Number(id));
+
+      const sel = Number(id)===Number(selected);
+      const moving = !!trains[id].state?.motors_running;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', sel?16:13);
+      circle.setAttribute('fill', sel? '#ef4444' : (moving ? '#3b82f6' : '#22c55e'));
+      circle.setAttribute('stroke', '#ffffff');
+      circle.setAttribute('stroke-width', '3');
+      g.appendChild(circle);
+
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('dy','5');
+      txt.setAttribute('fill','#000');
+      txt.setAttribute('font-weight','900');
+      txt.textContent = 'T'+id;
+      g.appendChild(txt);
+
+      layer.appendChild(g);
+    });
+  }
+
+  // ----- Selección y Panel -----
+  function selectTrain(id){
+    selected=id;
+    document.getElementById('panel').style.display='block';
+    document.getElementById('tid').textContent = '#'+id;
+    setAutoToggleUI(!!autoMode[id]);
+    renderList(); renderMap();
+    if(trains[id]) updatePanel(trains[id]);
+  }
+
+  function setPill(moving){
+    const pill = document.getElementById('pill');
+    if(moving){ pill.className='pill move'; pill.textContent='🔵 En movimiento'; }
+    else { pill.className='pill stop'; pill.textContent='🟢 Detenido'; }
+  }
+
+  function updatePanel(t){
+    const s = t.state || {};
+    setPill(!!s.motors_running);
+    if(!adjusting){
+      document.getElementById('speed').value = s.speed??0;
+      document.getElementById('v').textContent = s.speed??0;
+    }
+    document.getElementById('dir').textContent = s.direction || 'STOP';
+    document.getElementById('rssi').textContent = (s.wifi_rssi??0)+' dBm';
+    const up = Math.floor((s.uptime??0)/1000);
+    document.getElementById('up').textContent = `${Math.floor(up/60)}m ${up%60}s`;
+  }
+
+  // ----- Auto Mode -----
+  function setAutoToggleUI(isOn){
+    const tgl = document.getElementById('autoToggle');
+    const lbl = document.getElementById('autoLbl');
+    if(isOn){ tgl.classList.add('on'); lbl.textContent='Auto: ON'; }
+    else { tgl.classList.remove('on'); lbl.textContent='Auto: OFF'; }
+  }
+  document.getElementById('autoToggle').onclick = async ()=>{
+    if(!selected) return;
+    const next = !autoMode[selected];
+    try{
+      await fetch(`${API}/api/train/${selected}/auto_mode`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({enabled: next})
+      });
+      autoMode[selected]=next;
+      localStorage.setItem('autoMode', JSON.stringify(autoMode));
+      setAutoToggleUI(next);
+    }catch(e){ console.error(e); }
+  };
+
+  // ----- Eventos de estación → parar 5s y reanudar si Auto -----
+  async function handleStationEvent(ev){
+    // Intentamos leer formatos comunes: {train_id, station_id, event:"arrived"|... , train_present: "1"/true}
+    const tid = Number(ev.train_id ?? ev.tren_id ?? ev.trainId ?? ev.id);
+    if(!tid) return;
+    const arrived = (ev.event==='arrived' || ev.event==='enter' || ev.event==='present' ||
+                     ev.type==='arrived' || ev.train_present===true || ev.train_present==='1');
+
+    if(arrived && autoMode[tid]){
+      const resumeSpeed = Math.max(20, Number(lastSpeed[tid] ?? 60));
+      try{
+        // 1) Parar
+        await fetch(`${API}/api/train/${tid}/command`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({comando:'stop', parametros:{}})
+        });
+
+        // 2) Esperar 5 segundos
+        await new Promise(r=>setTimeout(r, 5000));
+
+        // 3) Reanudar hacia adelante
+        await fetch(`${API}/api/train/${tid}/command`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({comando:'move_forward', parametros:{velocidad_objetivo: resumeSpeed}})
+        });
+      }catch(e){ console.error('Auto-stop error', e); }
+    }
+  }
+
+  // ----- Envío de comandos -----
+  async function sendCmd(cmd, params={}){
+    if(!selected) return alert('Selecciona un tren');
+    try{
+      await fetch(`${API}/api/train/${selected}/command`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({comando:cmd, parametros:params})
+      });
+    }catch(e){ console.error(e); }
+  }
+
+  // Controles
+  const speed = document.getElementById('speed');
+  speed.addEventListener('input', e=>{
+    adjusting=true;
+    document.getElementById('v').textContent = e.target.value;
+  });
+  speed.addEventListener('change', async e=>{
+    const val = Number(e.target.value);
+    lastSpeed[selected]=val;
+    if(val===0){ await sendCmd('stop'); }
+    else{
+      const dir = trains[selected]?.state?.direction || 'STOP';
+      if(dir==='ATRAS') await sendCmd('move_reverse', {velocidad_objetivo:val});
+      else await sendCmd('move_forward', {velocidad_objetivo:val});
+    }
+    setTimeout(()=>adjusting=false, 400);
+  });
+
+  document.getElementById('fwd').onclick = ()=> {
+    const val = Number(speed.value)||75; lastSpeed[selected]=val;
+    sendCmd('move_forward', {velocidad_objetivo: val});
+  };
+  document.getElementById('back').onclick = ()=> {
+    const val = Number(speed.value)||75; lastSpeed[selected]=val;
+    sendCmd('move_reverse', {velocidad_objetivo: val});
+  };
+  document.getElementById('stop').onclick = async ()=>{
+    await sendCmd('stop'); speed.value=0; document.getElementById('v').textContent='0';
+  };
+  document.getElementById('panic').onclick = async ()=>{
+    if(!selected) return;
+    if(confirm(`¿Detener tren #${selected} y limpiar cola?`)){
+      await sendCmd('stop');
+      await fetch(`${API}/api/train/${selected}/queue`, {method:'DELETE'});
+      speed.value=0; document.getElementById('v').textContent='0';
+    }
+  };
+
+  // Init
+  connectWS();
+</script>
+</body>
+</html>

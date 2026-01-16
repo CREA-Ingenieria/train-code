@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Metro Bogotá – Control de Trenes</title>
+<style>
+  :root{
+    --red-dark:#991b1b;      /* rojo principal */
+    --red-medium:#dc2626;    /* rojo medio */
+    --red-light:#fca5a5;     /* rojo claro */
+    --bg-white:#ffffff;      /* fondo blanco */
+    --bg-light:#f9fafb;      /* gris muy claro */
+    --card-white:#ffffff;    /* tarjetas blancas */
+    --stroke-light:#e5e7eb;  /* bordes suaves */
+    --stroke-dark:#d1d5db;   /* bordes más oscuros */
+    --text-dark:#111827;     /* texto oscuro */
+    --text-medium:#4b5563;   /* texto medio */
+    --text-light:#6b7280;    /* texto claro */
+    --accent:#991b1b;        /* acento rojo */
+    --warn:#f59e0b;
+    --danger:#dc2626;
+    --ok:#22c55e;
+    --shadow-sm:0 1px 2px 0 rgba(0,0,0,0.05);
+    --shadow-md:0 4px 6px -1px rgba(0,0,0,0.1);
+    --shadow-lg:0 10px 15px -3px rgba(0,0,0,0.1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Arial,sans-serif;
+    background: var(--bg-light);
+    color: var(--text-dark);
+    min-height:100vh;
+    padding:0;
+    transition: background-color 0.3s ease;
+  }
+  /* Header rojo */
+  header{
+    background: linear-gradient(135deg, var(--red-dark) 0%, var(--red-medium) 100%);
+    padding: 32px 20px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+    animation: slideDown 0.6s ease-out;
+    text-align: center;
+  }
+  header::before{
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(45deg, transparent 25%, rgba(255,255,255,0.15) 50%, transparent 75%);
+    animation: shimmer 3s infinite;
+  }
+  @keyframes slideDown{
+    from{ transform: translateY(-100%); opacity: 0; }
+    to{ transform: translateY(0); opacity: 1; }
+  }
+  @keyframes shimmer{
+    0%{ transform: translateX(-100%); }
+    100%{ transform: translateX(100%); }
+  }
+  
+  .container{max-width:1400px;margin:0 auto; padding:20px;}
+  h1{
+    font-size:clamp(24px,3.4vw,42px);
+    letter-spacing:1.2px; font-weight:800; color:#fff;
+    text-transform:uppercase;
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    margin: 0 auto;
+  }
+  header .subtitle{
+    margin-top:6px; 
+    opacity:.9; 
+    color: rgba(255,255,255,0.95);
+    position: relative;
+    z-index: 1;
+    margin: 6px auto 0;
+  }
+
+  /* Logos en esquinas del header */
+  .corner-logo{
+    position:absolute; 
+    z-index:10; 
+    opacity:.95;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  .corner-logo:hover{
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  .logo-uniandes{left:20px; top:50%; transform: translateY(-50%); height:60px; }
+  .logo-metro{right:20px; top:50%; transform: translateY(-50%); height:100px; }
+
+  /* Estado de conexión */
+  .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    border:2px solid;
+    border-radius:999px; padding:10px 18px; margin-top:12px; font-weight:700;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s ease;
+    animation: fadeIn 0.5s ease-out 0.3s backwards;
+  }
+  .ok{ 
+    border-color:#22c55e; 
+    color:#166534; 
+    background:#f0fdf4;
+    box-shadow: 0 0 20px rgba(34,197,94,0.2);
+  }
+  .ko{ 
+    border-color:#ef4444; 
+    color:#991b1b; 
+    background:#fef2f2;
+    animation: pulse-alert 2s infinite;
+  }
+  @keyframes fadeIn{
+    from{ opacity: 0; transform: translateY(-10px); }
+    to{ opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse-alert{
+    0%, 100%{ box-shadow: 0 0 0 rgba(239,68,68,0); }
+    50%{ box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+  }
+
+  /* Layout principal */
+  .grid{
+    display:grid; grid-template-columns:2fr 1fr; gap:24px;
+    animation: fadeInUp 0.6s ease-out;
+  }
+  @media (max-width:1024px){ .grid{grid-template-columns:1fr} }
+  @keyframes fadeInUp{
+    from{ opacity: 0; transform: translateY(30px); }
+    to{ opacity: 1; transform: translateY(0); }
+  }
+
+  .card{
+    background: var(--card-white);
+    border:1px solid var(--stroke-light);
+    border-radius:16px;
+    padding:24px;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card:hover{
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+  .card-title{
+    font-size:20px; font-weight:800; letter-spacing:.5px;
+    color: var(--text-dark);
+    padding-bottom:12px;
+    border-bottom:2px solid var(--red-light);
+    margin-bottom: 16px;
+  }
+
+  /* Pista en óvalo (estadio) con SVG */
+  .map-wrap{ margin-top:12px }
+  .legend{
+    display:flex;
+    gap:20px;
+    justify-content:center;
+    margin-top:12px;
+    padding:12px;
+    background: var(--bg-light);
+    border-radius:10px;
+  }
+  .legend span{
+    display:inline-flex;
+    gap:8px;
+    align-items:center;
+    font-weight:600;
+    font-size:14px;
+    color: var(--text-dark);
+  }
+
+  /* Lista de trenes */
+  .train-list{ 
+    max-height:230px; 
+    overflow:auto; 
+    margin-top:10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red-light) var(--bg-light);
+  }
+  .train-list::-webkit-scrollbar{ width: 6px; }
+  .train-list::-webkit-scrollbar-track{ background: var(--bg-light); border-radius: 3px; }
+  .train-list::-webkit-scrollbar-thumb{ background: var(--red-light); border-radius: 3px; }
+  .train-list::-webkit-scrollbar-thumb:hover{ background: var(--red-medium); }
+  
+  .train-item{
+    border:2px solid var(--red-dark);
+    border-radius:12px;
+    background: var(--red-dark);
+    padding:14px;
+    margin-bottom:10px;
+    cursor:pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideInRight 0.4s ease-out backwards;
+  }
+  .train-item:nth-child(1){ animation-delay: 0.1s; }
+  .train-item:nth-child(2){ animation-delay: 0.2s; }
+  .train-item:nth-child(3){ animation-delay: 0.3s; }
+  @keyframes slideInRight{
+    from{ opacity: 0; transform: translateX(-20px); }
+    to{ opacity: 1; transform: translateX(0); }
+  }
+  .train-item:hover{
+    background: var(--red-medium);
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
+  }
+  .train-item.active{
+    border-color: #fbbf24;
+    background: var(--bg-white);
+    box-shadow: 0 0 0 3px rgba(251,191,36,0.3);
+    transform: translateX(4px) scale(1.02);
+  }
+  .train-item .head{
+    display:flex;
+    justify-content:space-between;
+    font-weight:700;
+    color: var(--bg-white);
+  }
+  .train-item.active .head{
+    color: var(--text-dark);
+  }
+  .train-item .muted{
+    color: rgba(255,255,255,0.8);
+    font-size: 14px;
+  }
+  .train-item.active .muted{
+    color: var(--text-light);
+  }
+  .muted{ color: var(--text-light); font-size: 14px; }
+
+  /* Controles */
+  .section{ margin-top:18px }
+  .label{
+    text-transform:uppercase;
+    font-size:12px;
+    letter-spacing:.8px;
+    font-weight:700;
+    color: var(--text-medium);
+    margin-bottom:10px;
+  }
+  .btn{
+    border:2px solid var(--red-dark);
+    border-radius:10px;
+    padding:12px 16px;
+    font-weight:800;
+    font-size:14px;
+    cursor:pointer;
+    color: var(--bg-white);
+    background: var(--red-dark);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn:hover{
+    background: var(--red-medium);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  .btn:active{
+    transform:translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+  .btn-danger{
+    background: var(--bg-white);
+    color: var(--danger);
+    border:2px solid var(--danger);
+  }
+  .btn-danger:hover{
+    background: var(--danger);
+    color: var(--bg-white);
+  }
+  .btn-warn{
+    background: var(--bg-white);
+    color: var(--warn);
+    border:2px solid var(--warn);
+  }
+  .btn-warn:hover{
+    background: var(--warn);
+    color: var(--bg-white);
+  }
+  .btn-ghost{
+    background:transparent;
+    color: var(--text-dark);
+    border:2px dashed var(--stroke-dark);
+  }
+  .btn-ghost:hover{
+    background: var(--bg-light);
+    border-style: solid;
+  }
+  .emergency{
+    width:100%;
+    margin-top:12px;
+    padding:16px;
+    font-size:15px;
+    animation: pulse-btn 2s infinite;
+  }
+  @keyframes pulse-btn{
+    0%, 100%{ box-shadow: 0 0 0 rgba(220,38,38,0); }
+    50%{ box-shadow: 0 0 20px rgba(220,38,38,0.4); }
+  }
+
+  /* NUEVO: Estado de Estaciones */
+  .station-status-box{
+    margin-top:20px;
+    padding:16px;
+    background: var(--bg-light);
+    border-radius:12px;
+    border: 2px solid var(--stroke-light);
+  }
+  .stations-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .station-status-card{
+    background:var(--card-white);
+    padding:12px;
+    border-radius:8px;
+    border: 2px solid var(--stroke-light);
+    transition: all 0.3s ease;
+  }
+  .station-status-card:hover{
+    border-color: var(--red-medium);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  .station-status-title{
+    font-weight:700;
+    font-size:13px;
+    color: var(--text-dark);
+    margin-bottom:8px;
+  }
+  .station-status-content{
+    font-size:18px;
+    font-weight:800;
+    color: var(--text-medium);
+  }
+  .station-status-content.train-present{
+    color: var(--red-dark);
+    animation: pulse-text 2s infinite;
+  }
+  @keyframes pulse-text{
+    0%, 100%{ opacity: 1; }
+    50%{ opacity: 0.7; }
+  }
+  
+  /* NUEVO: Control General del Sistema */
+  .system-control-box{
+    margin-top:20px;
+    padding:16px;
+    background: var(--bg-light);
+    border-radius:12px;
+    border: 2px solid var(--stroke-light);
+  }
+  
+  /* NUEVO: Modal de Configuración */
+  .modal-overlay{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s ease;
+  }
+  .modal{
+    background:var(--card-white);
+    border-radius:16px;
+    padding:28px;
+    max-width:500px;
+    width:90%;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes fadeIn{
+    from{ opacity: 0; }
+    to{ opacity: 1; }
+  }
+  @keyframes slideUp{
+    from{ transform: translateY(30px); opacity: 0; }
+    to{ transform: translateY(0); opacity: 1; }
+  }
+  .modal-title{
+    font-size:24px;
+    font-weight:800;
+    color: var(--red-dark);
+    margin-bottom:20px;
+    text-align:center;
+  }
+  .modal-form{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .modal-group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .modal-group label{
+    font-weight:700;
+    font-size:13px;
+    color: var(--text-medium);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+  }
+  .modal-group input{
+    padding:10px 14px;
+    border:2px solid var(--stroke-light);
+    border-radius:8px;
+    font-size:16px;
+    font-weight:600;
+    transition: all 0.2s ease;
+  }
+  .modal-group input:focus{
+    outline:none;
+    border-color: var(--red-dark);
+    box-shadow: 0 0 0 3px rgba(153,27,27,0.1);
+  }
+  .modal-buttons{
+    display:flex;
+    gap:12px;
+    margin-top:20px;
+  }
+  .modal-buttons button{
+    flex:1;
+  }
+
+  /* Slider */
+  .speed{
+    text-align:center;
+    font-size:40px;
+    font-weight:900;
+    color: var(--red-dark);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+  }
+  input[type="range"]{
+    width:100%;
+    height:10px;
+    border-radius:5px;
+    background: linear-gradient(to right, var(--red-light), var(--red-dark));
+    outline:none;
+    appearance:none;
+    -webkit-appearance:none;
+    transition: all 0.3s ease;
+  }
+  input[type="range"]:hover{ height:12px; }
+  input[type="range"]::-webkit-slider-thumb{
+    appearance:none;
+    -webkit-appearance:none;
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    background: var(--red-dark);
+    cursor:pointer;
+    border:3px solid var(--bg-white);
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover{
+    transform: scale(1.2);
+    box-shadow: var(--shadow-lg);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    background: var(--red-dark);
+    cursor:pointer;
+    border:3px solid var(--bg-white);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Chips info */
+  .info{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:12px }
+  .info .box{
+    background: var(--bg-light);
+    border:1px solid var(--stroke-light);
+    padding:12px;
+    border-radius:10px;
+    transition: all 0.3s ease;
+  }
+  .info .box:hover{
+    background: var(--bg-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+  }
+
+  /* Etiquetas de estado */
+  .pill{
+    display:inline-block;
+    padding:6px 14px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:13px;
+    transition: all 0.3s ease;
+  }
+  .pill.move{
+    background: #dbeafe;
+    border:2px solid #3b82f6;
+    color: #1e40af;
+  }
+  .pill.stop{
+    background: #dcfce7;
+    border:2px solid #22c55e;
+    color: #166534;
+  }
+
+  /* Auto mode toggle */
+  .toggle{
+    display:inline-grid;
+    grid-auto-flow:column;
+    gap:10px;
+    align-items:center;
+    padding:10px 14px;
+    border-radius:999px;
+    background: var(--bg-light);
+    border:2px solid var(--stroke-dark);
+    cursor:pointer;
+    user-select:none;
+    font-weight:700;
+    color: var(--text-dark);
+    transition: all 0.3s ease;
+  }
+  .toggle:hover{
+    background: var(--bg-white);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+  }
+  .dot{
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background: #fca5a5;
+    border:2px solid #991b1b;
+    transition: all 0.3s ease;
+  }
+  .on{
+    background: #dcfce7;
+    border-color: #22c55e;
+  }
+  .on .dot{
+    background: #22c55e;
+    border-color: #166534;
+    box-shadow: 0 0 10px rgba(34,197,94,0.5);
+  }
+
+  /* Etiquetas de estaciones */
+  .station-label{
+    font-size:13px;
+    font-weight:800;
+    fill: var(--text-dark);
+    text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+  }
+  
+  /* Estaciones iluminadas */
+  .station-circle{ transition: all 0.3s ease }
+  .station-circle.active{ 
+    filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 0 20px currentColor);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse{
+    0%, 100%{ opacity: 1; }
+    50%{ opacity: 0.7; }
+  }
+  
+  /* Configuración de tiempos */
+  .time-config{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+    margin-top:12px;
+  }
+  .time-input{
+    background: var(--bg-light);
+    border:1px solid var(--stroke-light);
+    padding:12px;
+    border-radius:8px;
+    color: var(--text-dark);
+    font-size:14px;
+    width:100%;
+    transition: all 0.3s ease;
+  }
+  .time-input:hover{
+    background: var(--bg-white);
+    box-shadow: var(--shadow-sm);
+  }
+  .time-input input{
+    background: var(--bg-white);
+    border:2px solid var(--stroke-dark);
+    padding:8px;
+    border-radius:6px;
+    color: var(--text-dark);
+    width:70px;
+    text-align:center;
+    font-weight:700;
+    font-size:16px;
+    transition: all 0.2s ease;
+  }
+  .time-input input:focus{
+    outline: none;
+    border-color: var(--red-dark);
+    box-shadow: 0 0 0 3px rgba(153,27,27,0.1);
+  }
+  
+  /* Sistema de sincronización */
+  .sync-status{
+    background: var(--bg-light);
+    border:2px solid var(--stroke-dark);
+    padding:12px 16px;
+    border-radius:10px;
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-weight:600;
+    color: var(--text-dark);
+    transition: all 0.3s ease;
+    animation: fadeIn 0.5s ease-out;
+  }
+  .sync-status.locked{
+    border-color: #f59e0b;
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .sync-status.unlocked{
+    border-color: #22c55e;
+    background: #dcfce7;
+    color: #166534;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <!-- Logos dentro del header -->
+  <img class="corner-logo logo-uniandes" src="static/img/uniandes.png" alt="Uniandes"/>
+  <img class="corner-logo logo-metro" src="static/img/metro_bogota.png" alt="Metro de Bogotá"/>
+  
+  <h1>Metro Bogotá • <span style="color:#fff">Control</span></h1>
+  <div class="subtitle">Sistema de Monitoreo y Control de Flota</div>
+  <div id="conn" class="badge ko">⚠ Desconectado</div>
+</header>
+
+<div class="container">
+
+  <div class="grid">
+    <!-- MAPA -->
+    <div class="card">
+      <div class="card-title">Línea 1 – <span id="active-count">0</span> trenes activos</div>
+
+      <div class="map-wrap">
+        <!-- SVG con óvalo (estadio): rect redondeado + estaciones -->
+        <svg id="map" viewBox="0 0 900 320" width="100%" height="260" aria-label="Mapa de vía en óvalo">
+          <!-- Pista -->
+          <rect x="60" y="50" width="780" height="220" rx="110" ry="110"
+                fill="none" stroke="#991b1b" stroke-width="10"/>
+          <!-- Riel interior para efecto doble vía -->
+          <rect x="80" y="70" width="740" height="180" rx="90" ry="90"
+                fill="none" stroke="#dc2626" stroke-width="6"/>
+
+          <!-- Estaciones -->
+          <!-- Estación 1 (Arriba Izquierda) -->
+          <circle id="station-1" class="station-circle" cx="160" cy="50" r="10" fill="#86efac" stroke="#062" stroke-width="3"/>
+          <text x="160" y="35" text-anchor="middle" class="station-label">Est. 1 (Portal Américas)</text>
+
+          <!-- Estación 3 (Centro Superior) -->
+          <circle id="station-3" class="station-circle" cx="470" cy="30" r="10" fill="#fde047" stroke="#854d0e" stroke-width="3"/>
+          <text x="470" y="15" text-anchor="middle" class="station-label">Est. 3 (Estación 3)</text>
+
+          <!-- Estación 2 (Abajo Derecha) -->
+          <circle id="station-2" class="station-circle" cx="780" cy="270" r="10" fill="#fca5a5" stroke="#600" stroke-width="3"/>
+          <text x="780" y="300" text-anchor="middle" class="station-label">Est. 2 (Calle 72)</text>
+
+          <!-- Capa de trenes (grupos posicionados en la curva) -->
+          <g id="trains-layer"></g>
+        </svg>
+
+        <div class="legend">
+          <span>🟢 <small>Detenido</small></span>
+          <span>🔵 <small>En movimiento</small></span>
+          <span>🔴 <small>Seleccionado</small></span>
+        </div>
+      </div>
+
+      <!-- NUEVO: Estado de Estaciones -->
+      <div class="station-status-box">
+        <div class="label" style="margin-bottom:12px;">Estado de Estaciones</div>
+        <div class="stations-grid">
+          <div class="station-status-card">
+            <div class="station-status-title">🟢 Est. 1 (Portal Américas)</div>
+            <div id="station-1-status" class="station-status-content">Esperando...</div>
+          </div>
+          <div class="station-status-card">
+            <div class="station-status-title">🟡 Est. 3 (Estación 3)</div>
+            <div id="station-3-status" class="station-status-content">Esperando...</div>
+          </div>
+          <div class="station-status-card">
+            <div class="station-status-title">🔴 Est. 2 (Calle 72)</div>
+            <div id="station-2-status" class="station-status-content">Esperando...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NUEVO: Control General del Sistema -->
+      <div class="system-control-box">
+        <div class="label" style="margin-bottom:12px;">Control General del Sistema</div>
+        <div class="btn-row">
+          <button class="btn" onclick="iniciarAutoGeneral()">🚀 Iniciar Auto</button>
+          <button class="btn btn-danger" onclick="paradaGeneral()">⏸️ Parada General</button>
+          <button class="btn btn-warn" onclick="resetSistema()">🔄 Reset Sistema</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL DE CONTROL -->
+    <div class="card">
+      <!-- Selector -->
+      <div class="section">
+        <div class="label">Trenes disponibles</div>
+        <div id="list" class="train-list"><div class="muted" style="text-align:center;padding:20px">No hay trenes</div></div>
+      </div>
+
+      <!-- Controles del tren seleccionado -->
+      <div id="panel" class="section" style="display:none">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Tren <strong id="tid">-</strong></span>
+          <div id="autoToggle" class="toggle"><span class="dot"></span><span id="autoLbl">Auto: OFF</span></div>
+        </div>
+
+        <!-- Estado de sincronización -->
+        <div id="syncStatus" class="sync-status locked" style="display:none">
+          <span>🔒</span>
+          <span id="syncText">Esperando a tren 1...</span>
+        </div>
+
+        <!-- Estado -->
+        <div class="section">
+          <div class="label">Estado</div>
+          <div>
+            <span id="pill" class="pill stop">🟢 Detenido</span>
+          </div>
+        </div>
+        
+        <!-- Configuración de tiempos de parada -->
+        <div class="section">
+          <div class="label">Tiempos de Parada (segundos)</div>
+          <div class="time-config">
+            <div class="time-input">
+              <div style="margin-bottom:4px">Estación 1:</div>
+              <input id="time-station-1" type="number" min="1" max="60" value="5"/> s
+            </div>
+            <div class="time-input">
+              <div style="margin-bottom:4px">Estación 2:</div>
+              <input id="time-station-2" type="number" min="1" max="60" value="5"/> s
+            </div>
+          </div>
+          <button id="saveTimesBtn" class="btn" style="width:100%;margin-top:10px;padding:8px">💾 Guardar Tiempos</button>
+        </div>
+
+        <!-- Velocidad -->
+        <div class="section">
+          <div class="label">Velocidad</div>
+          <input id="speed" type="range" min="0" max="100" value="0"/>
+          <div class="speed"><span id="v">0</span>%</div>
+        </div>
+
+        <!-- Dirección -->
+        <div class="section">
+          <div class="label">Control</div>
+          <div class="btn-row">
+            <button id="back" class="btn">◀ Atrás</button>
+            <button id="stop" class="btn btn-warn">■ Parar</button>
+            <button id="fwd" class="btn">Adelante ▶</button>
+          </div>
+          <div class="muted" style="text-align:center;margin-top:6px">
+            <span id="dir">Detenido</span>
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div class="info">
+          <div class="box">
+            <div class="label">Wi-Fi</div>
+            <div id="rssi">– dBm</div>
+          </div>
+          <div class="box">
+            <div class="label">Uptime</div>
+            <div id="up">–</div>
+          </div>
+        </div>
+
+        <!-- Emergencia -->
+        <button id="panic" class="btn btn-danger emergency">⚠ Parada de Emergencia</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ----- Config -----
+  const WS_URL = `ws://${location.host}/ws`;
+  const API = location.origin;
+
+  // Estado UI
+  let ws=null, selected=null, trains={}, adjusting=false;
+  // Mapa de auto-mode por tren (persistimos en localStorage para UI)
+  const autoMode = JSON.parse(localStorage.getItem('autoMode') || '{}');
+  // Última velocidad conocida por tren (para reanudar después de parada de estación)
+  const lastSpeed = {};
+  // Intervalo de actualización del tren seleccionado
+  let refreshInterval = null;
+  // Estado de estaciones
+  let stationsStatus = {
+    1: {train_present: false, train_id: null}, 
+    2: {train_present: false, train_id: null},
+    3: {train_present: false, train_id: null}
+  };
+  // Configuración del sistema
+  let systemConfig = {train1_reached_station1: false, max_speed_train1: 100};
+
+  // ----- WebSocket -----
+  function connectWS(){
+    ws = new WebSocket(WS_URL);
+    ws.onopen = ()=> {
+      setConn(true);
+      console.log('[WS] Conectado al servidor - actualizaciones en tiempo real activas');
+      // Cargar configuración del sistema al conectar
+      loadSystemConfig();
+      // Cargar estado de estaciones
+      loadStationsStatus();
+    };
+    ws.onclose = ()=>{ 
+      setConn(false); 
+      console.log('[WS] Desconectado - reintentando en 1.5s...');
+      setTimeout(connectWS, 1500); 
+    };
+    ws.onerror = (err)=> {
+      setConn(false);
+      console.error('[WS] Error:', err);
+    };
+    ws.onmessage = (e)=>{
+      try{
+        const msg = JSON.parse(e.data);
+        if(msg.type === 'state_update'){
+          handleState(msg.trains||[]);
+        } else if (msg.type === 'station_event'){
+          handleStationEvent(msg.data||{});
+        } else if (msg.type === 'command_sent'){
+          console.log(`[WS] Comando enviado a tren ${msg.train_id}: ${msg.comando}`);
+        }
+      }catch(err){
+        console.error('[WS] Error parseando mensaje:', err);
+      }
+    }
+  }
+  function setConn(ok){
+    const el = document.getElementById('conn');
+    if(ok){ el.className='badge ok'; el.textContent='✓ Conectado'; }
+    else { el.className='badge ko'; el.textContent='⚠ Desconectado'; }
+  }
+  
+  // ----- Carga de configuración y estado -----
+  async function loadSystemConfig(){
+    try{
+      const res = await fetch(`${API}/api/system/config`);
+      if(res.ok){
+        const data = await res.json();
+        if(data.success) {
+          systemConfig = data.config;
+          updateSyncStatus();
+        }
+      }
+    }catch(e){ console.warn('[CONFIG] Error cargando config del sistema:', e); }
+  }
+  
+  async function loadStationsStatus(){
+    try{
+      const res = await fetch(`${API}/api/stations/status`);
+      if(res.ok){
+        const data = await res.json();
+        if(data.success && data.stations){
+          data.stations.forEach(st => {
+            stationsStatus[st.station_id] = {
+              train_present: st.train_present,
+              train_id: st.train_id || null
+            };
+          });
+          updateStationVisuals();
+        }
+      }
+    }catch(e){ console.warn('[STATIONS] Error cargando estado:', e); }
+  }
+  
+  function updateStationVisuals(){
+    // Actualizar visualización de estaciones
+    [1, 2, 3].forEach(id => {
+      const circle = document.getElementById(`station-${id}`);
+      if(circle){
+        if(stationsStatus[id] && stationsStatus[id].train_present){
+          circle.classList.add('active');
+        } else {
+          circle.classList.remove('active');
+        }
+      }
+    });
+  }
+  
+  function updateSyncStatus(){
+    if(!selected || selected === 1) return; // Solo para trenes != 1
+    
+    const syncDiv = document.getElementById('syncStatus');
+    const syncText = document.getElementById('syncText');
+    
+    if(systemConfig.train1_reached_station1){
+      syncDiv.className = 'sync-status unlocked';
+      syncDiv.innerHTML = '<span>✅</span><span>Sistema sincronizado</span>';
+    } else {
+      syncDiv.className = 'sync-status locked';
+      syncDiv.innerHTML = '<span>🔒</span><span>Esperando a tren 1 en estación 1...</span>';
+    }
+  }
+
+  // ----- Render de estado -----
+  function handleState(arr){
+    // No limpiar el objeto trains, solo actualizar
+    arr.forEach(t=>{
+      const tid = t.train_id;
+      trains[tid] = t;
+      // Guardar velocidad para reanudar después de paradas
+      if(t.state?.speed > 0) lastSpeed[tid] = t.state.speed;
+    });
+    
+    renderList();
+    renderMap();
+    
+    // Actualizar panel del tren seleccionado si existe
+    if(selected && trains[selected]) {
+      updatePanel(trains[selected]);
+    }
+  }
+
+  function renderList(){
+    const list = document.getElementById('list');
+    const ids = Object.keys(trains);
+    document.getElementById('active-count').textContent = ids.length;
+    if(ids.length===0){ list.innerHTML = '<div class="muted" style="text-align:center;padding:20px">No hay trenes</div>'; return; }
+
+    list.innerHTML='';
+    ids.sort((a,b)=>a-b).forEach(id=>{
+      const t = trains[id];
+      const div = document.createElement('div');
+      div.className = 'train-item'+(Number(id)===Number(selected)?' active':'');
+      div.onclick = ()=> selectTrain(Number(id));
+      const arrow = t.state?.direction==='ADELANTE'?'▶':(t.state?.direction==='ATRAS'?'◀':'■');
+      div.innerHTML = `
+        <div class="head">
+          <span>Tren #${id}</span>
+          <span>${arrow}</span>
+        </div>
+        <div class="muted">${t.state?.speed ?? 0}% • ${t.state?.direction || 'STOP'}</div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  // ----- Mapa: colocamos trenes alrededor del óvalo equiespaciados -----
+  function renderMap(){
+    const layer = document.getElementById('trains-layer');
+    while(layer.firstChild) layer.removeChild(layer.firstChild);
+    const ids = Object.keys(trains);
+    const cx = 450, cy = 160;           // centro del SVG
+    const rx = 350, ry = 110;           // radios de la pista (coincide con rect interior)
+    ids.forEach((id, idx)=>{
+      const angle = (idx/Math.max(1,ids.length)) * 2*Math.PI; // reparto
+      const x = cx + rx * Math.cos(angle);
+      const y = cy + ry * Math.sin(angle);
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform',`translate(${x},${y})`);
+      g.style.cursor='pointer';
+      g.onclick = ()=> selectTrain(Number(id));
+
+      const sel = Number(id)===Number(selected);
+      const moving = !!trains[id].state?.motors_running;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r', sel?16:13);
+      circle.setAttribute('fill', sel? '#ef4444' : (moving ? '#3b82f6' : '#22c55e'));
+      circle.setAttribute('stroke', '#ffffff');
+      circle.setAttribute('stroke-width', '3');
+      g.appendChild(circle);
+
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('dy','5');
+      txt.setAttribute('fill','#000');
+      txt.setAttribute('font-weight','900');
+      txt.textContent = 'T'+id;
+      g.appendChild(txt);
+
+      layer.appendChild(g);
+    });
+  }
+
+  // ----- Selección y Panel -----
+  async function selectTrain(id){
+    // Si ya está seleccionado, cerrar panel y deseleccionar
+    if(selected === id){
+      selected = null;
+      document.getElementById('panel').style.display='none';
+      if(refreshInterval) clearInterval(refreshInterval);
+      renderList();
+      renderMap();
+      return;
+    }
+    
+    // Seleccionar nuevo tren
+    selected=id;
+    document.getElementById('panel').style.display='block';
+    document.getElementById('tid').textContent = '#'+id;
+    setAutoToggleUI(!!autoMode[id]);
+    renderList(); renderMap();
+    
+    // Mostrar/ocultar estado de sincronización
+    const syncDiv = document.getElementById('syncStatus');
+    if(id === 1){
+      syncDiv.style.display = 'none';
+    } else {
+      syncDiv.style.display = 'flex';
+      updateSyncStatus();
+    }
+    
+    // Cargar configuración de tiempos de parada
+    await loadTrainStationConfig(id);
+    
+    // Forzar actualización inmediata del estado del tren al seleccionarlo
+    await fetchTrainState(id);
+    
+    // Iniciar actualización periódica del tren seleccionado (cada 1 segundo)
+    if(refreshInterval) clearInterval(refreshInterval);
+    refreshInterval = setInterval(async ()=>{
+      if(selected === id) await fetchTrainState(id);
+      else clearInterval(refreshInterval);
+    }, 1000);  // Actualización cada 1 segundo para mantener UI fresca
+  }
+  
+  // Cargar configuración de tiempos de parada del tren
+  async function loadTrainStationConfig(id){
+    try{
+      const res = await fetch(`${API}/api/train/${id}/station_config`);
+      if(res.ok){
+        const data = await res.json();
+        if(data.success && data.config){
+          document.getElementById('time-station-1').value = data.config.station_1_time || 5;
+          document.getElementById('time-station-2').value = data.config.station_2_time || 5;
+        }
+      }
+    }catch(e){ console.warn('[CONFIG] Error cargando tiempos de parada:', e); }
+  }
+  
+  // Obtener estado actual del tren desde el servidor
+  async function fetchTrainState(id){
+    try{
+      const res = await fetch(`${API}/api/train/${id}/state`);
+      if(!res.ok) {
+        console.warn(`[API] Error ${res.status} obteniendo estado del tren ${id}`);
+        return;
+      }
+      const data = await res.json();
+      if(data.success && data.state){
+        // Actualizar en el objeto local
+        if(!trains[id]) trains[id] = {train_id: id, state: {}};
+        trains[id].state = data.state;
+        // Actualizar panel inmediatamente si es el tren seleccionado
+        if(selected === id) {
+          updatePanel(trains[id]);
+          // También actualizar en lista y mapa
+          renderList();
+          renderMap();
+        }
+      }
+    }catch(e){ 
+      console.warn('[API] Error fetching train state:', e); 
+    }
+  }
+
+  function setPill(moving){
+    const pill = document.getElementById('pill');
+    if(moving){ pill.className='pill move'; pill.textContent='🔵 En movimiento'; }
+    else { pill.className='pill stop'; pill.textContent='🟢 Detenido'; }
+  }
+
+  function updatePanel(t){
+    if(!t || !t.state) return;
+    
+    const s = t.state;
+    
+    // Actualizar indicador de movimiento
+    const moving = s.motors_running === true || s.motors_running === '1' || 
+                   (s.direction !== 'STOP' && s.speed > 0);
+    setPill(moving);
+    
+    // Actualizar velocidad (solo si el usuario no está ajustando el slider)
+    if(!adjusting){
+      const currentSpeed = parseInt(s.speed) || 0;
+      document.getElementById('speed').value = currentSpeed;
+      document.getElementById('v').textContent = currentSpeed;
+    }
+    
+    // Actualizar dirección con más detalle
+    let dirText = s.direction || 'STOP';
+    if(dirText === 'STOP' && !moving){
+      dirText = '■ Detenido';
+    } else if(dirText === 'ADELANTE'){
+      dirText = '▶ Adelante';
+    } else if(dirText === 'ATRAS'){
+      dirText = '◀ Atrás';
+    }
+    document.getElementById('dir').textContent = dirText;
+    
+    // Actualizar WiFi y Uptime
+    document.getElementById('rssi').textContent = (s.wifi_rssi || 0) + ' dBm';
+    const up = Math.floor((s.uptime || 0) / 1000);
+    document.getElementById('up').textContent = `${Math.floor(up/60)}m ${up%60}s`;
+    
+    // Log para debug (puedes comentar después)
+    console.log(`[Tren ${t.train_id}] Dir: ${s.direction}, Speed: ${s.speed}, Motors: ${s.motors_running}`);
+  }
+
+  // ----- Auto Mode -----
+  function setAutoToggleUI(isOn){
+    const tgl = document.getElementById('autoToggle');
+    const lbl = document.getElementById('autoLbl');
+    if(isOn){ tgl.classList.add('on'); lbl.textContent='Auto: ON'; }
+    else { tgl.classList.remove('on'); lbl.textContent='Auto: OFF'; }
+  }
+  document.getElementById('autoToggle').onclick = async ()=>{
+    if(!selected) return;
+    const next = !autoMode[selected];
+    try{
+      await fetch(`${API}/api/train/${selected}/auto_mode`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({enabled: next})
+      });
+      autoMode[selected]=next;
+      localStorage.setItem('autoMode', JSON.stringify(autoMode));
+      setAutoToggleUI(next);
+    }catch(e){ console.error(e); }
+  };
+
+  // ----- Eventos de estación -----
+  async function handleStationEvent(ev){
+    console.log('[STATION EVENT]', ev);
+    
+    const station_id = ev.station_id;
+    const train_id = ev.train_id;
+    const event_type = ev.event_type;
+    
+    // Actualizar estado de estaciones
+    if(station_id && stationsStatus[station_id]){
+      if(event_type === 'train_arrived'){
+        stationsStatus[station_id].train_present = true;
+        stationsStatus[station_id].train_id = train_id;
+        console.log(`[STATION ${station_id}] Tren #${train_id} ha llegado`);
+        
+        // Actualizar recuadro de estado de estaciones
+        updateStationStatus(station_id, train_id);
+        
+        // Si es tren 1 en estación 1, recargar config del sistema
+        if(station_id === 1 && train_id === 1){
+          console.log('[SYNC] ✓ Tren 1 alcanzó estación 1 - Sistema desbloqueado');
+          await loadSystemConfig();
+        }
+      } else if(event_type === 'train_departed'){
+        stationsStatus[station_id].train_present = false;
+        stationsStatus[station_id].train_id = null;
+        console.log(`[STATION ${station_id}] Tren #${train_id} ha partido`);
+        
+        // Actualizar recuadro de estado de estaciones
+        updateStationStatus(station_id, null);
+      }
+      
+      updateStationVisuals();
+    }
+  }
+
+  // ----- Envío de comandos -----
+  async function sendCmd(cmd, params={}){
+    if(!selected) return alert('Selecciona un tren');
+    try{
+      await fetch(`${API}/api/train/${selected}/command`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({comando:cmd, parametros:params})
+      });
+    }catch(e){ console.error(e); }
+  }
+
+  // Validación de velocidad: otros trenes no pueden ir más rápido que tren 1
+  function getMaxAllowedSpeed(){
+    if(!selected || selected === 1) return 100;
+    
+    // Obtener velocidad actual del tren 1
+    const train1 = trains[1];
+    if(train1 && train1.state){
+      const train1Speed = train1.state.speed || 100;
+      return train1Speed;
+    }
+    return 100;
+  }
+  
+  function validateSpeed(requestedSpeed){
+    const maxAllowed = getMaxAllowedSpeed();
+    if(requestedSpeed > maxAllowed){
+      console.warn(`[SPEED LIMIT] Velocidad limitada a ${maxAllowed}% (velocidad tren 1)`);
+      alert(`⚠️ Velocidad limitada a ${maxAllowed}%\n\nOtros trenes no pueden ir más rápido que el tren 1.`);
+      return maxAllowed;
+    }
+    return requestedSpeed;
+  }
+
+  // Controles
+  const speed = document.getElementById('speed');
+  speed.addEventListener('input', e=>{
+    adjusting=true;
+    let val = Number(e.target.value);
+    
+    // Validar velocidad en tiempo real
+    if(selected && selected !== 1){
+      const maxAllowed = getMaxAllowedSpeed();
+      if(val > maxAllowed){
+        val = maxAllowed;
+        e.target.value = val;
+      }
+    }
+    
+    document.getElementById('v').textContent = val;
+  });
+  speed.addEventListener('change', async e=>{
+    let val = Number(e.target.value);
+    
+    // Validar velocidad antes de enviar
+    val = validateSpeed(val);
+    e.target.value = val;
+    document.getElementById('v').textContent = val;
+    
+    lastSpeed[selected]=val;
+    if(val===0){ await sendCmd('stop'); }
+    else{
+      const dir = trains[selected]?.state?.direction || 'STOP';
+      if(dir==='ATRAS') await sendCmd('move_reverse', {velocidad_objetivo:val});
+      else await sendCmd('move_forward', {velocidad_objetivo:val});
+    }
+    setTimeout(()=>adjusting=false, 400);
+  });
+
+  document.getElementById('fwd').onclick = ()=> {
+    let val = Number(speed.value)||75;
+    val = validateSpeed(val); // Validar velocidad
+    lastSpeed[selected]=val;
+    sendCmd('move_forward', {velocidad_objetivo: val});
+  };
+  document.getElementById('back').onclick = ()=> {
+    let val = Number(speed.value)||75;
+    val = validateSpeed(val); // Validar velocidad
+    lastSpeed[selected]=val;
+    sendCmd('move_reverse', {velocidad_objetivo: val});
+  };
+  document.getElementById('stop').onclick = async ()=>{
+    await sendCmd('stop'); speed.value=0; document.getElementById('v').textContent='0';
+  };
+  document.getElementById('panic').onclick = async ()=>{
+    if(!selected) return;
+    if(confirm(`¿Detener tren #${selected} y limpiar cola?`)){
+      await sendCmd('stop');
+      await fetch(`${API}/api/train/${selected}/queue`, {method:'DELETE'});
+      speed.value=0; document.getElementById('v').textContent='0';
+    }
+  };
+  
+  // Guardar tiempos de parada
+  document.getElementById('saveTimesBtn').onclick = async ()=>{
+    if(!selected) return;
+    const time1 = Number(document.getElementById('time-station-1').value) || 5;
+    const time2 = Number(document.getElementById('time-station-2').value) || 5;
+    
+    try{
+      const res = await fetch(`${API}/api/train/${selected}/station_config`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          station_1_time: time1,
+          station_2_time: time2
+        })
+      });
+      
+      if(res.ok){
+        const data = await res.json();
+        if(data.success){
+          alert(`✅ Tiempos guardados para tren #${selected}\n\nEstación 1: ${time1}s\nEstación 2: ${time2}s`);
+        } else {
+          alert('❌ Error al guardar tiempos');
+        }
+      }
+    }catch(e){
+      console.error('[CONFIG] Error guardando tiempos:', e);
+      alert('❌ Error al guardar tiempos');
+    }
+  };
+
+  // Init
+  connectWS();
+  
+  // Actualizar estado de estaciones periódicamente (cada 3 segundos)
+  setInterval(loadStationsStatus, 3000);
+  
+  // Actualizar configuración del sistema periódicamente (cada 5 segundos)
+  setInterval(loadSystemConfig, 5000);
+  
+  // ===== NUEVAS FUNCIONES: Control General del Sistema =====
+  
+  function iniciarAutoGeneral(){
+    // Mostrar modal de configuración
+    mostrarModalConfiguracion();
+  }
+  
+  async function paradaGeneral(){
+    if(!confirm('¿Detener todos los trenes y desactivar modo automático?')) return;
+    
+    try{
+      const res = await fetch(`${API}/api/system/parada-general`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      });
+      
+      const data = await res.json();
+      if(data.success){
+        alert('✓ Sistema detenido: ' + data.message);
+      } else {
+        alert('Error: ' + (data.error || 'Desconocido'));
+      }
+    }catch(e){
+      console.error('[PARADA GENERAL] Error:', e);
+      alert('Error de conexión al servidor');
+    }
+  }
+  
+  async function resetSistema(){
+    if(!confirm('¿Resetear el sistema completo? Esto detendrá todos los trenes y limpiará la configuración.')) return;
+    
+    try{
+      const res = await fetch(`${API}/api/system/reset`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      });
+      
+      const data = await res.json();
+      if(data.success){
+        alert('✓ Sistema reseteado: ' + data.message);
+        location.reload(); // Recargar página
+      } else {
+        alert('Error: ' + (data.error || 'Desconocido'));
+      }
+    }catch(e){
+      console.error('[RESET] Error:', e);
+      alert('Error de conexión al servidor');
+    }
+  }
+  
+  function mostrarModalConfiguracion(){
+    const modalHTML = `
+      <div class="modal-overlay" id="configModal">
+        <div class="modal">
+          <div class="modal-title">⚙️ Configuración del Sistema Automático</div>
+          <div class="modal-form">
+            <div class="modal-group">
+              <label>Velocidad Tren 1 (%)</label>
+              <input type="number" id="vel-tren1" min="1" max="100" value="75"/>
+            </div>
+            <div class="modal-group">
+              <label>Velocidad Tren 2 (%)</label>
+              <input type="number" id="vel-tren2" min="1" max="100" value="75"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 1 Tren 1 (segundos)</label>
+              <input type="number" id="time-e1-t1" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 3 Tren 1 (segundos)</label>
+              <input type="number" id="time-e3-t1" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 2 Tren 1 (segundos)</label>
+              <input type="number" id="time-e2-t1" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 1 Tren 2 (segundos)</label>
+              <input type="number" id="time-e1-t2" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 3 Tren 2 (segundos)</label>
+              <input type="number" id="time-e3-t2" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-group">
+              <label>Tiempo Est. 2 Tren 2 (segundos)</label>
+              <input type="number" id="time-e2-t2" min="1" max="60" value="5"/>
+            </div>
+            <div class="modal-buttons">
+              <button class="btn btn-ghost" onclick="cerrarModalConfiguracion()">Cancelar</button>
+              <button class="btn" onclick="iniciarAutoConConfiguracion()">🚀 Iniciar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
+  
+  function cerrarModalConfiguracion(){
+    const modal = document.getElementById('configModal');
+    if(modal) modal.remove();
+  }
+  
+  async function iniciarAutoConConfiguracion(){
+    const config = {
+      tren1: {
+        velocidad: parseInt(document.getElementById('vel-tren1').value) || 75,
+        tiempo_est1: parseInt(document.getElementById('time-e1-t1').value) || 5,
+        tiempo_est3: parseInt(document.getElementById('time-e3-t1').value) || 5,
+        tiempo_est2: parseInt(document.getElementById('time-e2-t1').value) || 5
+      },
+      tren2: {
+        velocidad: parseInt(document.getElementById('vel-tren2').value) || 75,
+        tiempo_est1: parseInt(document.getElementById('time-e1-t2').value) || 5,
+        tiempo_est3: parseInt(document.getElementById('time-e3-t2').value) || 5,
+        tiempo_est2: parseInt(document.getElementById('time-e2-t2').value) || 5
+      }
+    };
+    
+    try{
+      const res = await fetch(`${API}/api/system/iniciar-auto-general`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config)
+      });
+      
+      const data = await res.json();
+      cerrarModalConfiguracion();
+      
+      if(data.success){
+        alert('✓ Sistema automático iniciado: ' + data.message);
+      } else {
+        alert('Error: ' + (data.error || 'Desconocido'));
+      }
+    }catch(e){
+      console.error('[AUTO GENERAL] Error:', e);
+      alert('Error de conexión al servidor');
+    }
+  }
+  
+  // Actualizar estado de estaciones en el nuevo recuadro
+  function updateStationStatus(stationId, trainId){
+    const statusEl = document.getElementById(`station-${stationId}-status`);
+    if(statusEl){
+      if(trainId){
+        statusEl.textContent = `TREN ${trainId}`;
+        statusEl.classList.add('train-present');
+      } else {
+        statusEl.textContent = 'Esperando...';
+        statusEl.classList.remove('train-present');
+      }
+    }
+  }
+</script>
+</body>
+</html>

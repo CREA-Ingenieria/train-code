@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Trenes - Metro Bogotá</title>
+    <!-- Tailwind CSS local -->
+    <link href="/static/tailwind.css" rel="stylesheet">
+    <!-- Fuentes locales -->
+    <link href="/static/fonts.css" rel="stylesheet">
+    <!-- Iconos Material local -->
+    <link href="/static/material-icons.css" rel="stylesheet">
+    <style>
+        .train { transition: left 0.5s ease-out; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse-slow { animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .track-segment { position: relative; background-color: #4a5568; height: 12px; border-radius: 6px; }
+        .track-segment.active { background-color: #f59e0b; }
+        .train-icon { transform: translateY(-50%); z-index: 10; }
+        .station-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .station-dot:hover { transform: scale(1.2); box-shadow: 0 0 15px rgba(255, 255, 255, 0.5); }
+        .train-selector { cursor: pointer; transition: all 0.3s; }
+        .train-selector.active { background-color: rgb(220 38 38); color: white; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans text-text-light dark:text-text-dark transition-colors duration-500">
+    <div class="relative min-h-screen overflow-hidden">
+        <!-- Background -->
+        <div class="absolute inset-0 z-0">
+            <img alt="Bogotá cityscape" class="w-full h-full object-cover opacity-20 dark:opacity-30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAH6o36XdThavGEJB8MsRzUrNrYSF2bun-5FxjF2Ql_FWrDnjGqTKE9xcRFOfDFNeAaKSxYBze6RTgHVGJR9-zVZ89IW3sKSWyvaiCFmmGBy6SMMXYOkk1sHc2iVEd2bCe2SkMtYSl-vxy-jdQ7gpHbrQxzgM6ZJB2iVRtuIfpV0ou1cfPH35EJAqe9eN_JmRrHp33LWVu04Tp7kiukM9jn2VAOJemRTNKpSCRmWXtb4gPjkM0zR0tkH9WO0ZYOdPgcrjpZ8c043nbJ">
+            <div class="absolute inset-0 bg-gradient-to-t from-background-light via-transparent to-transparent dark:from-background-dark"></div>
+        </div>
+
+        <div class="relative z-10 flex flex-col min-h-screen p-4 sm:p-6 md:p-8">
+            <!-- Header -->
+            <header class="w-full max-w-7xl mx-auto mb-8 text-center">
+                <h1 class="font-display text-4xl sm:text-5xl md:text-6xl font-bold tracking-wider uppercase text-white drop-shadow-lg">
+                    Metro Bogotá <span class="text-primary">Control</span>
+                </h1>
+                <p class="mt-2 text-lg text-gray-200 dark:text-gray-300 drop-shadow-md">Sistema de Monitoreo y Control de Flota a Escala</p>
+                
+                <!-- Connection Status -->
+                <div class="mt-4 inline-flex items-center space-x-2 px-4 py-2 rounded-full" id="connection-status">
+                    <span class="material-icons text-sm">wifi_off</span>
+                    <span class="text-sm font-medium">Desconectado</span>
+                </div>
+            </header>
+
+            <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 flex-grow">
+                <!-- Mapa Principal -->
+                <div class="lg:col-span-2 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-sm rounded-lg shadow-2xl p-6">
+                    <div class="flex justify-between items-center mb-6 border-b-2 border-primary/50 pb-2">
+                        <h2 class="font-display text-2xl">Mapa de Línea 1</h2>
+                        <div class="text-sm">
+                            <span class="font-bold" id="active-trains-count">0</span> trenes activos
+                        </div>
+                    </div>
+                    
+                    <!-- Track -->
+                    <div class="relative h-96 w-full flex flex-col justify-around">
+                        <!-- Track line -->
+                        <div class="absolute w-full top-1/2 -translate-y-1/2 flex items-center">
+                            <div class="track-segment active w-full"></div>
+                        </div>
+                        
+                        <!-- Stations -->
+                        <div class="absolute w-full top-1/2 -translate-y-1/2 flex justify-between items-center px-4">
+                            <div class="station-dot bg-green-500" title="Portal Américas">
+                                <span class="material-icons text-white text-sm">home</span>
+                            </div>
+                            <div class="station-dot bg-gray-400 dark:bg-gray-500" title="Estación 1"></div>
+                            <div class="station-dot bg-gray-400 dark:bg-gray-500" title="Estación 2"></div>
+                            <div class="station-dot bg-gray-400 dark:bg-gray-500" title="Estación 3"></div>
+                            <div class="station-dot bg-red-500" title="Calle 72">
+                                <span class="material-icons text-white text-sm">flag</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Trains (dinámico) -->
+                        <div id="trains-container" class="absolute w-full top-1/2"></div>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="mt-6 flex justify-center space-x-6 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-green-500 rounded-full"></div>
+                            <span>Detenido</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-blue-500 rounded-full"></div>
+                            <span>En Movimiento</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-red-500 rounded-full"></div>
+                            <span>Seleccionado</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Control Panel -->
+                <div class="bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-sm rounded-lg shadow-2xl p-6 flex flex-col">
+                    <!-- Train Selector -->
+                    <div class="mb-6">
+                        <h3 class="font-display text-xl mb-3">Seleccionar Tren</h3>
+                        <div id="train-selector" class="space-y-2 max-h-40 overflow-y-auto">
+                            <div class="text-gray-500 text-center py-4">
+                                No hay trenes disponibles
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Train Info -->
+                    <div id="train-info" class="flex-grow" style="display: none;">
+                        <h2 class="font-display text-2xl mb-6">
+                            Tren <span id="selected-train-id">-</span>
+                        </h2>
+                        
+                        <div class="space-y-6">
+                            <!-- Estado -->
+                            <div>
+                                <h3 class="text-sm font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Estado</h3>
+                                <div class="flex items-center space-x-2 p-3 rounded-lg" id="train-status-container">
+                                    <span class="material-icons animate-pulse-slow" id="status-icon">online_prediction</span>
+                                    <span class="font-medium text-lg" id="train-status">En Línea</span>
+                                </div>
+                            </div>
+
+                            <!-- Velocidad -->
+                            <div>
+                                <label class="text-sm font-bold uppercase text-gray-500 dark:text-gray-400 mb-2 block">Velocidad</label>
+                                <div class="flex items-center space-x-4">
+                                    <span class="material-icons">slow_motion_video</span>
+                                    <input class="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-primary" 
+                                           id="speed-slider" type="range" min="0" max="100" value="0">
+                                    <span class="material-icons">speed</span>
+                                </div>
+                                <div class="text-center mt-2 font-display text-xl">
+                                    <span id="speed-value">0</span>%
+                                </div>
+                            </div>
+
+                            <!-- Dirección -->
+                            <div>
+                                <h3 class="text-sm font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Dirección</h3>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button class="p-3 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-primary hover:text-white transition-all" 
+                                            id="btn-backward">
+                                        <span class="material-icons">arrow_back</span>
+                                    </button>
+                                    <button class="p-3 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-yellow-500 hover:text-white transition-all" 
+                                            id="btn-stop">
+                                        <span class="material-icons">stop</span>
+                                    </button>
+                                    <button class="p-3 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-primary hover:text-white transition-all" 
+                                            id="btn-forward">
+                                        <span class="material-icons">arrow_forward</span>
+                                    </button>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <span class="font-medium" id="direction-text">Detenido</span>
+                                </div>
+                            </div>
+
+                            <!-- Info adicional -->
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="text-gray-500">WiFi:</span>
+                                    <span class="font-bold" id="wifi-rssi">- dBm</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">Uptime:</span>
+                                    <span class="font-bold" id="uptime">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emergency Button -->
+                    <button class="mt-8 w-full flex items-center justify-center space-x-3 py-3 px-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 active:bg-red-800 transition-all shadow-lg" 
+                            id="btn-emergency">
+                        <span class="material-icons">emergency</span>
+                        <span>PARADA DE EMERGENCIA</span>
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const WS_URL = `ws://${window.location.host}/ws`;
+        
+        let ws = null;
+        let selectedTrainId = null;
+        let trainsData = {};
+        let isUserAdjustingSpeed = false;
+
+        // DOM Elements
+        const trainsContainer = document.getElementById('trains-container');
+        const trainSelector = document.getElementById('train-selector');
+        const trainInfo = document.getElementById('train-info');
+        const connectionStatus = document.getElementById('connection-status');
+        const activeTrainsCount = document.getElementById('active-trains-count');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedValue = document.getElementById('speed-value');
+
+        // Initialize WebSocket
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('[WS] Conectado');
+                updateConnectionStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'state_update') {
+                    handleStateUpdate(data.trains);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('[WS] Error:', error);
+                updateConnectionStatus(false);
+            };
+            
+            ws.onclose = () => {
+                console.log('[WS] Desconectado - Reconectando en 3s...');
+                updateConnectionStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.className = 'mt-4 inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400';
+                connectionStatus.innerHTML = '<span class="material-icons text-sm">wifi</span><span class="text-sm font-medium">Conectado</span>';
+            } else {
+                connectionStatus.className = 'mt-4 inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-red-500/20 text-red-400';
+                connectionStatus.innerHTML = '<span class="material-icons text-sm">wifi_off</span><span class="text-sm font-medium">Desconectado</span>';
+            }
+        }
+
+        function handleStateUpdate(trains) {
+            trainsData = {};
+            trains.forEach(train => {
+                trainsData[train.train_id] = train;
+            });
+            
+            updateTrainsList();
+            updateTrainsOnMap();
+            
+            if (selectedTrainId && trainsData[selectedTrainId]) {
+                updateSelectedTrainInfo(trainsData[selectedTrainId]);
+            }
+        }
+
+        function updateTrainsList() {
+            const trainCount = Object.keys(trainsData).length;
+            activeTrainsCount.textContent = trainCount;
+            
+            if (trainCount === 0) {
+                trainSelector.innerHTML = '<div class="text-gray-500 text-center py-4">No hay trenes disponibles</div>';
+                return;
+            }
+            
+            trainSelector.innerHTML = '';
+            Object.values(trainsData).forEach(train => {
+                const div = document.createElement('div');
+                div.className = `train-selector p-3 rounded-lg border-2 ${selectedTrainId === train.train_id ? 'active border-primary' : 'border-gray-300 dark:border-gray-600'}`;
+                div.onclick = () => selectTrain(train.train_id);
+                
+                const directionIcon = train.state.direction === 'ADELANTE' ? 'arrow_forward' : 
+                                     train.state.direction === 'ATRAS' ? 'arrow_back' : 'stop';
+                const statusColor = train.state.motors_running ? 'text-blue-500' : 'text-green-500';
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold">Tren #${train.train_id}</span>
+                        <span class="material-icons ${statusColor}">${directionIcon}</span>
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">
+                        ${train.state.speed}% - ${train.state.direction}
+                    </div>
+                `;
+                
+                trainSelector.appendChild(div);
+            });
+        }
+
+        function updateTrainsOnMap() {
+            trainsContainer.innerHTML = '';
+            
+            Object.values(trainsData).forEach((train, index) => {
+                const trainDiv = document.createElement('div');
+                trainDiv.className = 'train absolute top-1/2';
+                
+                // Posicionar según velocidad y dirección (simulado)
+                const basePosition = 15 + (index * 20);
+                trainDiv.style.left = `${Math.min(85, basePosition)}%`;
+                
+                const isSelected = train.train_id === selectedTrainId;
+                const isMoving = train.state.motors_running;
+                const trainColor = isSelected ? 'text-red-500' : (isMoving ? 'text-blue-500' : 'text-green-500');
+                
+                trainDiv.innerHTML = `
+                    <div class="relative train-icon cursor-pointer" onclick="selectTrain(${train.train_id})">
+                        <span class="material-icons text-4xl ${trainColor} drop-shadow-lg">train</span>
+                        <div class="absolute -top-6 -right-5 bg-white dark:bg-gray-800 text-xs px-2 py-1 rounded-full shadow-lg">
+                            <span>T-${train.train_id}</span>
+                        </div>
+                    </div>
+                `;
+                
+                trainsContainer.appendChild(trainDiv);
+            });
+        }
+
+        function selectTrain(trainId) {
+            selectedTrainId = trainId;
+            document.getElementById('selected-train-id').textContent = `#${trainId}`;
+            trainInfo.style.display = 'block';
+            
+            updateTrainsList();
+            updateTrainsOnMap();
+            
+            if (trainsData[trainId]) {
+                updateSelectedTrainInfo(trainsData[trainId]);
+            }
+        }
+
+        function updateSelectedTrainInfo(train) {
+            const state = train.state;
+            
+            // Estado
+            const statusContainer = document.getElementById('train-status-container');
+            const statusIcon = document.getElementById('status-icon');
+            const statusText = document.getElementById('train-status');
+            
+            if (state.motors_running) {
+                statusContainer.className = 'flex items-center space-x-2 p-3 rounded-lg bg-blue-100 dark:bg-blue-900/50';
+                statusIcon.className = 'material-icons text-blue-500 animate-pulse-slow';
+                statusText.className = 'font-medium text-lg text-blue-700 dark:text-blue-300';
+                statusText.textContent = 'En Movimiento';
+            } else {
+                statusContainer.className = 'flex items-center space-x-2 p-3 rounded-lg bg-green-100 dark:bg-green-900/50';
+                statusIcon.className = 'material-icons text-green-500';
+                statusText.className = 'font-medium text-lg text-green-700 dark:text-green-300';
+                statusText.textContent = 'Detenido';
+            }
+            
+            // Velocidad (solo actualizar si el usuario no está ajustando)
+            if (!isUserAdjustingSpeed) {
+                speedSlider.value = state.speed;
+                speedValue.textContent = state.speed;
+            }
+            
+            // Dirección
+            document.getElementById('direction-text').textContent = state.direction;
+            
+            // WiFi RSSI
+            document.getElementById('wifi-rssi').textContent = `${state.wifi_rssi} dBm`;
+            
+            // Uptime
+            const uptimeSec = Math.floor(state.uptime / 1000);
+            const minutes = Math.floor(uptimeSec / 60);
+            const seconds = uptimeSec % 60;
+            document.getElementById('uptime').textContent = `${minutes}m ${seconds}s`;
+        }
+
+        // Send command to train
+        async function sendCommand(comando, parametros = {}) {
+            if (!selectedTrainId) {
+                alert('Seleccione un tren primero');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/train/${selectedTrainId}/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comando, parametros })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Error enviando comando:', data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Event Listeners
+        speedSlider.addEventListener('input', (e) => {
+            isUserAdjustingSpeed = true;
+            speedValue.textContent = e.target.value;
+        });
+
+        speedSlider.addEventListener('change', (e) => {
+            const speed = parseInt(e.target.value);
+            
+            // Determinar comando según dirección actual
+            if (selectedTrainId && trainsData[selectedTrainId]) {
+                const currentDir = trainsData[selectedTrainId].state.direction;
+                
+                if (speed === 0) {
+                    sendCommand('stop');
+                } else if (currentDir === 'ADELANTE' || currentDir === 'STOP') {
+                    sendCommand('move_forward', { velocidad_objetivo: speed });
+                } else {
+                    sendCommand('move_reverse', { velocidad_objetivo: speed });
+                }
+            }
+            
+            setTimeout(() => { isUserAdjustingSpeed = false; }, 1000);
+        });
+
+        document.getElementById('btn-forward').addEventListener('click', () => {
+            const speed = parseInt(speedSlider.value) || 75;
+            sendCommand('move_forward', { velocidad_objetivo: speed });
+        });
+
+        document.getElementById('btn-backward').addEventListener('click', () => {
+            const speed = parseInt(speedSlider.value) || 75;
+            sendCommand('move_reverse', { velocidad_objetivo: speed });
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            sendCommand('stop');
+            speedSlider.value = 0;
+            speedValue.textContent = 0;
+        });
+
+        document.getElementById('btn-emergency').addEventListener('click', async () => {
+            if (!selectedTrainId) {
+                alert('Seleccione un tren primero');
+                return;
+            }
+            
+            if (confirm(`¿Detener el tren #${selectedTrainId} y limpiar su cola de comandos?`)) {
+                // Enviar comando de stop
+                await sendCommand('stop');
+                
+                // Limpiar cola
+                try {
+                    await fetch(`${API_BASE}/api/train/${selectedTrainId}/queue`, {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    console.error('Error limpiando cola:', error);
+                }
+                
+                speedSlider.value = 0;
+                speedValue.textContent = 0;
+            }
+        });
+
+        // Initialize
+        connectWebSocket();
+    </script>
+</body>
+</html>
